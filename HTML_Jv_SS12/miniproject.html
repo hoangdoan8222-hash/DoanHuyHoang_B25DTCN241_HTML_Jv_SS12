@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        const students = seedStudents();
+
+const AGE_MIN = 16;
+const AGE_MAX = 60;
+const GPA_MIN = 0.0;
+const GPA_MAX = 10.0;
+const DEFAULT_PAGE_SIZE = 5;
+
+function nowTs() {
+  return Date.now();
+}
+
+function normalizeWhitespace(s) {
+  return String(s ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeName(name) {
+  return normalizeWhitespace(name);
+}
+
+function normalizeStatus(statusRaw) {
+  const s = normalizeWhitespace(statusRaw).toLowerCase();
+  if (s === "active" || s === "inactive") return s;
+  return null;
+}
+
+function parseNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseIntSafe(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (!Number.isInteger(n)) return null;
+  return n;
+}
+
+function existsStudentId(id) {
+  const norm = normalizeWhitespace(id);
+  return students.some((st) => st.id === norm);
+}
+
+function findStudentById(id) {
+  const norm = normalizeWhitespace(id);
+  return students.find((st) => st.id === norm) ?? null;
+}
+
+function renderStudents(list, title = "STUDENTS") {
+  console.log(`\n=== ${title} (count: ${list.length}) ===`);
+  const view = list.map((st) => ({
+    id: st.id,
+    name: st.name,
+    age: st.age,
+    gpa: st.gpa,
+    status: st.status,
+    createdAt: new Date(st.createdAt).toLocaleString(),
+    updatedAt: st.updatedAt ? new Date(st.updatedAt).toLocaleString() : "",
+    deletedAt: st.deletedAt ? new Date(st.deletedAt).toLocaleString() : "",
+  }));
+
+  if (console.table) console.table(view);
+  else console.log(view);
+}
+
+function info(msg) {
+  alert(msg);
+}
+
+function error(msg) {
+  alert(`❌ ${msg}`);
+}
+
+function promptNonEmpty(message) {
+  const raw = prompt(message);
+  const value = normalizeWhitespace(raw);
+  if (!value) {
+    error("Không được để trống. Vui lòng nhập lại.");
+    return promptNonEmpty(message);
+  }
+  return value;
+}
+
+function promptStudentId(message, opts = {}) {
+  const { mustBeUnique = false, mustExist = false } = opts;
+  const id = promptNonEmpty(message);
+
+  if (mustBeUnique && existsStudentId(id)) {
+    error("ID đã tồn tại. Vui lòng nhập ID khác.");
+    return promptStudentId(message, opts);
+  }
+
+  if (mustExist && !existsStudentId(id)) {
+    error("Không tìm thấy sinh viên với ID này. Vui lòng nhập lại.");
+    return promptStudentId(message, opts);
+  }
+
+  return id;
+}
+
+function promptAge(message) {
+  const raw = promptNonEmpty(message);
+  const n = parseIntSafe(raw);
+
+  if (n === null) {
+    error("Tuổi phải là số nguyên.");
+    return promptAge(message);
+  }
+
+  if (n < AGE_MIN || n > AGE_MAX) {
+    error(`Tuổi phải trong khoảng ${AGE_MIN}-${AGE_MAX}`);
+    return promptAge(message);
+  }
+
+  return n;
+}
+
+function promptGpa(message) {
+  const raw = promptNonEmpty(message);
+  const n = parseNumber(raw);
+
+  if (n === null) {
+    error("GPA phải là số.");
+    return promptGpa(message);
+  }
+
+  if (n < GPA_MIN || n > GPA_MAX) {
+    error(`GPA phải trong khoảng ${GPA_MIN}-${GPA_MAX}`);
+    return promptGpa(message);
+  }
+
+  return Math.round(n * 100) / 100;
+}
+
+function promptStatus(message) {
+  const raw = promptNonEmpty(message);
+  const s = normalizeStatus(raw);
+
+  if (!s) {
+    error('Status chỉ "active" hoặc "inactive"');
+    return promptStatus(message);
+  }
+
+  return s;
+}
+
+function createStudent() {
+  const id = promptStudentId("Nhập ID:", { mustBeUnique: true });
+  const name = normalizeName(promptNonEmpty("Nhập tên:"));
+  const age = promptAge("Nhập tuổi:");
+  const gpa = promptGpa("Nhập GPA:");
+  const status = promptStatus("Nhập status:");
+
+  const st = {
+    id,
+    name,
+    age,
+    gpa,
+    status,
+    createdAt: nowTs(),
+    updatedAt: null,
+    deletedAt: null,
+  };
+
+  students.push(st);
+
+  info(`Thêm thành công ${st.name}`);
+}
+
+function partialUpdateStudent() {
+  const id = promptStudentId("Nhập ID cần sửa:", { mustExist: true });
+  const st = findStudentById(id);
+
+  const name = prompt("Tên mới (Enter để bỏ qua):");
+  const age = prompt("Tuổi mới:");
+  const gpa = prompt("GPA mới:");
+  const status = prompt("Status mới:");
+
+  if (name) st.name = normalizeName(name);
+  if (age) st.age = parseInt(age);
+  if (gpa) st.gpa = parseFloat(gpa);
+  if (status) st.status = normalizeStatus(status);
+
+  st.updatedAt = nowTs();
+
+  info("Cập nhật thành công");
+}
+
+function softDeleteStudent() {
+  const id = promptStudentId("Nhập ID cần xóa:", { mustExist: true });
+  const st = findStudentById(id);
+
+  st.status = "inactive";
+  st.deletedAt = nowTs();
+  st.updatedAt = nowTs();
+
+  info("Đã soft delete");
+}
+
+function restoreStudent() {
+  const id = promptStudentId("Nhập ID cần khôi phục:", { mustExist: true });
+  const st = findStudentById(id);
+
+  st.status = "active";
+  st.deletedAt = null;
+  st.updatedAt = nowTs();
+
+  info("Đã restore");
+}
+
+function readAllStudents() {
+  renderStudents(students, "ALL STUDENTS");
+}
+
+function printMenu() {
+  console.log(`
+1. Create Student
+2. Update Student
+3. Soft Delete
+4. Restore
+5. View Students
+0. Exit
+`);
+}
+
+function main() {
+  let choice = "";
+
+  do {
+    printMenu();
+
+    choice = prompt("Nhập lựa chọn:");
+
+    switch (choice) {
+      case "1":
+        createStudent();
+        break;
+
+      case "2":
+        partialUpdateStudent();
+        break;
+
+      case "3":
+        softDeleteStudent();
+        break;
+
+      case "4":
+        restoreStudent();
+        break;
+
+      case "5":
+        readAllStudents();
+        break;
+
+      case "0":
+        alert("Tạm biệt");
+        break;
+
+      default:
+        alert("Sai lựa chọn");
+    }
+  } while (choice !== "0");
+}
+
+function seedStudents() {
+  const base = Date.now();
+
+  return [
+    { id: "S01", name: "Nguyen Van A", age: 19, gpa: 8.9, status: "active" },
+    { id: "S02", name: "Tran Thi B", age: 18, gpa: 7.5, status: "active" },
+    { id: "S03", name: "Le Van C", age: 21, gpa: 6.2, status: "active" },
+    { id: "S04", name: "Pham Thi D", age: 20, gpa: 0, status: "inactive" },
+    { id: "S05", name: "Hoang Van E", age: 22, gpa: 2.8, status: "active" },
+  ].map((s, i) => ({
+    ...s,
+    createdAt: base + i * 1000,
+    updatedAt: null,
+    deletedAt: s.status === "inactive" ? base + i * 1000 : null,
+  }));
+}
+
+main();
+    </script>
+</body>
+</html>
